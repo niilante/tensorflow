@@ -20,7 +20,8 @@ from __future__ import print_function
 
 # pylint: disable=missing-docstring
 import argparse
-import os.path
+import os
+import sys
 import time
 
 from six.moves import xrange  # pylint: disable=redefined-builtin
@@ -107,8 +108,8 @@ def do_eval(sess,
                                images_placeholder,
                                labels_placeholder)
     true_count += sess.run(eval_correct, feed_dict=feed_dict)
-  precision = true_count / num_examples
-  print('  Num examples: %d  Num correct: %d  Precision @ 1: %0.04f' %
+  precision = float(true_count) / num_examples
+  print('Num examples: %d  Num correct: %d  Precision @ 1: %0.04f' %
         (num_examples, true_count, precision))
 
 
@@ -142,16 +143,16 @@ def run_training():
     summary = tf.summary.merge_all()
 
     # Add the variable initializer Op.
-    init = tf.initialize_all_variables()
+    init = tf.global_variables_initializer()
 
     # Create a saver for writing training checkpoints.
-    saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
+    saver = tf.train.Saver()
 
     # Create a session for running Ops on the Graph.
     sess = tf.Session()
 
     # Instantiate a SummaryWriter to output summaries and the Graph.
-    summary_writer = tf.train.SummaryWriter(FLAGS.log_dir, sess.graph)
+    summary_writer = tf.summary.FileWriter(FLAGS.log_dir, sess.graph)
 
     # And then after everything is built:
 
@@ -256,13 +257,15 @@ if __name__ == '__main__':
   parser.add_argument(
       '--input_data_dir',
       type=str,
-      default='/tmp/tensorflow/mnist/input_data',
+      default=os.path.join(os.getenv('TEST_TMPDIR', '/tmp'),
+                           'tensorflow/mnist/input_data'),
       help='Directory to put the input data.'
   )
   parser.add_argument(
       '--log_dir',
       type=str,
-      default='/tmp/tensorflow/mnist/logs/fully_connected_feed',
+      default=os.path.join(os.getenv('TEST_TMPDIR', '/tmp'),
+                           'tensorflow/mnist/logs/fully_connected_feed'),
       help='Directory to put the log data.'
   )
   parser.add_argument(
@@ -271,5 +274,6 @@ if __name__ == '__main__':
       help='If true, uses fake data for unit testing.',
       action='store_true'
   )
-  FLAGS = parser.parse_args()
-  tf.app.run()
+
+  FLAGS, unparsed = parser.parse_known_args()
+  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)

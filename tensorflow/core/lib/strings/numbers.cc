@@ -80,16 +80,14 @@ T locale_independent_strtonum(const char* str, const char** endptr) {
   // Set to result to what strto{f,d} functions would have returned. If the
   // number was outside the range, the stringstream sets the fail flag, but
   // returns the +/-max() value, whereas strto{f,d} functions return +/-INF.
-  bool real_fail = false;
   if (s.fail()) {
-    real_fail = true;
-    if (result == std::numeric_limits<T>::max()) {
+    if (result == std::numeric_limits<T>::max() ||
+        result == std::numeric_limits<T>::infinity()) {
       result = std::numeric_limits<T>::infinity();
-      real_fail = false;
       s.clear(s.rdstate() & ~std::ios::failbit);
-    } else if (result == -std::numeric_limits<T>::max()) {
+    } else if (result == -std::numeric_limits<T>::max() ||
+               result == -std::numeric_limits<T>::infinity()) {
       result = -std::numeric_limits<T>::infinity();
-      real_fail = false;
       s.clear(s.rdstate() & ~std::ios::failbit);
     }
   }
@@ -97,10 +95,9 @@ T locale_independent_strtonum(const char* str, const char** endptr) {
   if (endptr) {
     *endptr =
         str +
-        (real_fail
-             ? static_cast<std::iostream::pos_type>(0)
-             : (s.eof() ? static_cast<std::iostream::pos_type>(strlen(str))
-                        : s.tellg()));
+        (s.fail() ? static_cast<std::iostream::pos_type>(0)
+                  : (s.eof() ? static_cast<std::iostream::pos_type>(strlen(str))
+                             : s.tellg()));
   }
   return result;
 }
@@ -171,7 +168,7 @@ char* DoubleToBuffer(double value, char* buffer) {
     DCHECK(snprintf_result > 0 && snprintf_result < kFastToBufferSize);
 
     full_precision_needed =
-        locale_independent_strtonum<double>(buffer, NULL) != value;
+        locale_independent_strtonum<double>(buffer, nullptr) != value;
   }
 
   if (full_precision_needed) {
@@ -239,7 +236,7 @@ bool safe_strtou64(StringPiece str, uint64* value) {
   SkipSpaces(&str);
   if (!isdigit(SafeFirstChar(str))) return false;
 
-  int64 result = 0;
+  uint64 result = 0;
   do {
     int digit = SafeFirstChar(str) - '0';
     if ((kuint64max - digit) / 10 < result) {
@@ -345,7 +342,7 @@ char* FloatToBuffer(float value, char* buffer) {
   float parsed_value;
   if (!safe_strtof(buffer, &parsed_value) || parsed_value != value) {
     snprintf_result =
-        snprintf(buffer, kFastToBufferSize, "%.*g", FLT_DIG + 2, value);
+        snprintf(buffer, kFastToBufferSize, "%.*g", FLT_DIG + 3, value);
 
     // Should never overflow; see above.
     DCHECK(snprintf_result > 0 && snprintf_result < kFastToBufferSize);

@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef THIRD_PARTY_TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_MASTER_SERVICE_IMPL_H_
-#define THIRD_PARTY_TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_MASTER_SERVICE_IMPL_H_
+#ifndef TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_MASTER_SERVICE_IMPL_H_
+#define TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_MASTER_SERVICE_IMPL_H_
 
 #include "grpc++/impl/codegen/async_stream.h"
 #include "grpc++/impl/codegen/async_unary_call.h"
@@ -53,7 +53,7 @@ namespace grpc {
 // definition in "//tensorflow/core/protobuf/master_service.proto",
 // and the gRPC generated stub and service classes.
 // See that file for the definition of methods and messages.
-class MasterService GRPC_FINAL {
+class MasterService final {
  public:
   class StubInterface {
    public:
@@ -64,6 +64,9 @@ class MasterService GRPC_FINAL {
     virtual ::grpc::Status ExtendSession(::grpc::ClientContext* context,
                                          const ExtendSessionRequest& request,
                                          ExtendSessionResponse* response) = 0;
+    virtual ::grpc::Status PartialRunSetup(
+        ::grpc::ClientContext* context, const PartialRunSetupRequest& request,
+        PartialRunSetupResponse* response) = 0;
     virtual ::grpc::Status RunStep(::grpc::ClientContext* context,
                                    const RunStepRequest& request,
                                    RunStepResponse* response) = 0;
@@ -77,36 +80,40 @@ class MasterService GRPC_FINAL {
                                  const ResetRequest& request,
                                  ResetResponse* response) = 0;
   };
-  class Stub GRPC_FINAL : public StubInterface {
+  class Stub final : public StubInterface {
    public:
     Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel);
     ::grpc::Status CreateSession(::grpc::ClientContext* context,
                                  const CreateSessionRequest& request,
-                                 CreateSessionResponse* response) GRPC_OVERRIDE;
+                                 CreateSessionResponse* response) override;
     ::grpc::Status ExtendSession(::grpc::ClientContext* context,
                                  const ExtendSessionRequest& request,
-                                 ExtendSessionResponse* response) GRPC_OVERRIDE;
+                                 ExtendSessionResponse* response) override;
+    ::grpc::Status PartialRunSetup(::grpc::ClientContext* context,
+                                   const PartialRunSetupRequest& request,
+                                   PartialRunSetupResponse* response) override;
     ::grpc::Status RunStep(::grpc::ClientContext* context,
                            const RunStepRequest& request,
-                           RunStepResponse* response) GRPC_OVERRIDE;
+                           RunStepResponse* response) override;
     ::grpc::Status CloseSession(::grpc::ClientContext* context,
                                 const CloseSessionRequest& request,
-                                CloseSessionResponse* response) GRPC_OVERRIDE;
+                                CloseSessionResponse* response) override;
     ::grpc::Status ListDevices(::grpc::ClientContext* context,
                                const ListDevicesRequest& request,
-                               ListDevicesResponse* response) GRPC_OVERRIDE;
+                               ListDevicesResponse* response) override;
     ::grpc::Status Reset(::grpc::ClientContext* context,
                          const ResetRequest& request,
-                         ResetResponse* response) GRPC_OVERRIDE;
+                         ResetResponse* response) override;
 
    private:
     std::shared_ptr< ::grpc::ChannelInterface> channel_;
-    const ::grpc::RpcMethod rpcmethod_CreateSession_;
-    const ::grpc::RpcMethod rpcmethod_ExtendSession_;
-    const ::grpc::RpcMethod rpcmethod_RunStep_;
-    const ::grpc::RpcMethod rpcmethod_CloseSession_;
-    const ::grpc::RpcMethod rpcmethod_ListDevices_;
-    const ::grpc::RpcMethod rpcmethod_Reset_;
+    const ::grpc::internal::RpcMethod rpcmethod_CreateSession_;
+    const ::grpc::internal::RpcMethod rpcmethod_ExtendSession_;
+    const ::grpc::internal::RpcMethod rpcmethod_PartialRunSetup_;
+    const ::grpc::internal::RpcMethod rpcmethod_RunStep_;
+    const ::grpc::internal::RpcMethod rpcmethod_CloseSession_;
+    const ::grpc::internal::RpcMethod rpcmethod_ListDevices_;
+    const ::grpc::internal::RpcMethod rpcmethod_Reset_;
   };
   static std::unique_ptr<Stub> NewStub(
       const std::shared_ptr< ::grpc::ChannelInterface>& channel,
@@ -132,12 +139,20 @@ class MasterService GRPC_FINAL {
       ::grpc::Service::RequestAsyncUnary(1, context, request, response,
                                          new_call_cq, notification_cq, tag);
     }
+    void RequestPartialRunSetup(
+        ::grpc::ServerContext* context, PartialRunSetupRequest* request,
+        ::grpc::ServerAsyncResponseWriter<PartialRunSetupResponse>* response,
+        ::grpc::CompletionQueue* new_call_cq,
+        ::grpc::ServerCompletionQueue* notification_cq, void* tag) {
+      ::grpc::Service::RequestAsyncUnary(2, context, request, response,
+                                         new_call_cq, notification_cq, tag);
+    }
     void RequestRunStep(
         ::grpc::ServerContext* context, RunStepRequest* request,
         ::grpc::ServerAsyncResponseWriter<RunStepResponse>* response,
         ::grpc::CompletionQueue* new_call_cq,
         ::grpc::ServerCompletionQueue* notification_cq, void* tag) {
-      ::grpc::Service::RequestAsyncUnary(2, context, request, response,
+      ::grpc::Service::RequestAsyncUnary(3, context, request, response,
                                          new_call_cq, notification_cq, tag);
     }
     void RequestCloseSession(
@@ -145,7 +160,7 @@ class MasterService GRPC_FINAL {
         ::grpc::ServerAsyncResponseWriter<CloseSessionResponse>* response,
         ::grpc::CompletionQueue* new_call_cq,
         ::grpc::ServerCompletionQueue* notification_cq, void* tag) {
-      ::grpc::Service::RequestAsyncUnary(3, context, request, response,
+      ::grpc::Service::RequestAsyncUnary(4, context, request, response,
                                          new_call_cq, notification_cq, tag);
     }
     void RequestListDevices(
@@ -153,7 +168,7 @@ class MasterService GRPC_FINAL {
         ::grpc::ServerAsyncResponseWriter<ListDevicesResponse>* response,
         ::grpc::CompletionQueue* new_call_cq,
         ::grpc::ServerCompletionQueue* notification_cq, void* tag) {
-      ::grpc::Service::RequestAsyncUnary(4, context, request, response,
+      ::grpc::Service::RequestAsyncUnary(5, context, request, response,
                                          new_call_cq, notification_cq, tag);
     }
     void RequestReset(
@@ -161,7 +176,7 @@ class MasterService GRPC_FINAL {
         ::grpc::ServerAsyncResponseWriter<ResetResponse>* response,
         ::grpc::CompletionQueue* new_call_cq,
         ::grpc::ServerCompletionQueue* notification_cq, void* tag) {
-      ::grpc::Service::RequestAsyncUnary(5, context, request, response,
+      ::grpc::Service::RequestAsyncUnary(6, context, request, response,
                                          new_call_cq, notification_cq, tag);
     }
   };
@@ -171,4 +186,4 @@ class MasterService GRPC_FINAL {
 
 }  // namespace tensorflow
 
-#endif  // THIRD_PARTY_TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_MASTER_SERVICE_IMPL_H_
+#endif  // TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_RPC_GRPC_MASTER_SERVICE_IMPL_H_

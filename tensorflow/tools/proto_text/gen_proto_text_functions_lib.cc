@@ -28,7 +28,6 @@ using ::tensorflow::protobuf::EnumDescriptor;
 using ::tensorflow::protobuf::FieldDescriptor;
 using ::tensorflow::protobuf::FieldOptions;
 using ::tensorflow::protobuf::FileDescriptor;
-using ::tensorflow::protobuf::OneofDescriptor;
 
 namespace tensorflow {
 
@@ -59,7 +58,7 @@ string StrAppend(string* to_append, const Args&... args) {
 // the field names (it's a loop over all names), and tracking of has_seen.
 class Generator {
  public:
-  Generator(const string& tf_header_prefix)
+  explicit Generator(const string& tf_header_prefix)
       : tf_header_prefix_(tf_header_prefix),
         header_(&code_.header),
         header_impl_(&code_.header_impl),
@@ -72,7 +71,7 @@ class Generator {
 
  private:
   struct Section {
-    Section(string* str) : str(str) {}
+    explicit Section(string* str) : str(str) {}
     string* str;
     string indent;
   };
@@ -154,7 +153,7 @@ class Generator {
 string GetPackageReferencePrefix(const FileDescriptor* fd) {
   string result = "::";
   const string& package = fd->package();
-  for (int i = 0; i < package.size(); ++i) {
+  for (size_t i = 0; i < package.size(); ++i) {
     if (package[i] == '.') {
       result += "::";
     } else {
@@ -446,6 +445,7 @@ void Generator::AppendParseMessageFunction(const Descriptor& md) {
   Print("StringPiece identifier;");
   Print("if (!scanner->GetResult(nullptr, &identifier)) return false;");
   Print("bool parsed_colon = false;");
+  Print("(void)parsed_colon;"); // Avoid "set but not used" compiler warning
   Print("ProtoSpaceAndComments(scanner);");
   Print("if (scanner->Peek() == ':') {");
   Nest().Print("parsed_colon = true;");
@@ -634,6 +634,7 @@ void Generator::AppendDebugStringFunctions(const Descriptor& md) {
   Print().Print("namespace internal {").Print();
   Print(sig, " {").Nest();
   std::vector<const FieldDescriptor*> fields;
+  fields.reserve(md.field_count());
   for (int i = 0; i < md.field_count(); ++i) {
     fields.push_back(md.field(i));
   }
@@ -675,7 +676,7 @@ void Generator::AppendMessageFunctions(const Descriptor& md) {
 void Generator::AddNamespaceToCurrentSection(const string& package, bool open) {
   Print();
   std::vector<string> parts = {""};
-  for (int i = 0; i < package.size(); ++i) {
+  for (size_t i = 0; i < package.size(); ++i) {
     if (package[i] == '.') {
       parts.resize(parts.size() + 1);
     } else {

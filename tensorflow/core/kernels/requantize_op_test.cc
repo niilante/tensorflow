@@ -15,7 +15,6 @@ limitations under the License.
 
 #include "tensorflow/core/framework/allocator.h"
 #include "tensorflow/core/framework/fake_input.h"
-#include "tensorflow/core/framework/graph.pb.h"
 #include "tensorflow/core/framework/node_def_builder.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -88,10 +87,12 @@ TEST_F(RequantizeTest, InvalidOutputMax) {
                             {-(1 << 23), 0, (1 << 23)});
   AddInputFromArray<float>(TensorShape({1}), {-256.0f});
   AddInputFromArray<float>(TensorShape({1}), {256.0f});
-  AddInputFromArray<float>(TensorShape({1}), {-1.0f});
-  AddInputFromArray<float>(TensorShape({1}), {-0.001f});
-  EXPECT_EQ("requested_output_max must be <= 0, but got -0.001",
-            RunOpKernel().error_message());
+  AddInputFromArray<float>(TensorShape({1}), {-10.0f});
+  AddInputFromArray<float>(TensorShape({1}), {-11.0f});
+  EXPECT_EQ(
+      "requested_output_max must be >= requested_output_min, but got -11 and "
+      "-10",
+      RunOpKernel().error_message());
 }
 
 }  // end namespace tensorflow

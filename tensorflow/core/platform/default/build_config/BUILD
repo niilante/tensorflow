@@ -7,16 +7,19 @@ licenses(["notice"])  # Apache 2.0
 
 exports_files(["LICENSE"])
 
+load("//tensorflow:tensorflow.bzl", "if_cuda")
 load("//tensorflow:tensorflow.bzl", "tf_copts")
 load("//tensorflow:tensorflow.bzl", "tf_cuda_library")
-load("@local_config_cuda//cuda:platform.bzl", "cuda_library_path")
+load("//tensorflow/core:platform/default/build_config_root.bzl", "if_static")
+load("@local_config_sycl//sycl:platform.bzl", "sycl_library_path")
+load("@local_config_sycl//sycl:build_defs.bzl", "if_ccpp")
 
 cc_library(
     name = "gtest",
     testonly = 1,
     copts = tf_copts(),
     deps = [
-        "//external:gtest",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -32,6 +35,24 @@ tf_cuda_library(
     deps = [
         "//tensorflow/stream_executor",
     ] + select({
+        "//tensorflow:using_cuda_clang": ["//tensorflow/stream_executor:cuda_platform"],
+        "//tensorflow:using_cuda_nvcc": ["//tensorflow/stream_executor:cuda_platform"],
+        "//tensorflow:using_cuda_clang_with_dynamic_build": [],
+        "//tensorflow:using_cuda_nvcc_with_dynamic_build": [],
+        "//conditions:default": [],
+    }) + select({
+        "@local_config_cuda//cuda:darwin": ["IOKit"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
+    name = "stream_executor_cuda",
+    deps = [
+        "//tensorflow/stream_executor",
+    ] + if_static(
+        ["//tensorflow/stream_executor:cuda_platform"],
+    ) + select({
         "@local_config_cuda//cuda:darwin": ["IOKit"],
         "//conditions:default": [],
     }),
@@ -39,12 +60,25 @@ tf_cuda_library(
 
 cc_library(
     name = "stream_executor_no_cuda",
-    hdrs = [
-        "stream_executor_no_cuda.h",
-    ],
     deps = [
         "//tensorflow/stream_executor",
     ],
+)
+
+# Dummy stream executor cuda plugins.
+cc_library(
+    name = "cublas_plugin",
+    srcs = [],
+)
+
+cc_library(
+    name = "cufft_plugin",
+    srcs = [],
+)
+
+cc_library(
+    name = "cudnn_plugin",
+    srcs = [],
 )
 
 # OSX framework for device driver access
@@ -63,6 +97,13 @@ cc_library(
     ],
 )
 
+# Minimal lib so that tools used for mobile compilation
+# don't have to depend on platformlib.
+cc_library(
+    name = "logging",
+    copts = tf_copts(),
+)
+
 # Minimal lib to be used by tensorflow/core:framework_lite.
 # This provides minimal support for writing operator implementations (kernels),
 # and excludes anything that can bloat binary size if used.
@@ -76,13 +117,38 @@ cc_library(
     name = "platformlib",
     copts = tf_copts(),
     deps = [
+        ":gif",
+        ":jpeg",
         "//tensorflow/core:protos_cc",
         "@com_googlesource_code_re2//:re2",
         "@farmhash_archive//:farmhash",
-        "@gif_archive//:gif",
+        "@fft2d",
         "@highwayhash//:sip_hash",
-        "@jpeg_archive//:jpeg",
         "@png_archive//:png",
+    ],
+)
+
+cc_library(
+    name = "gif",
+    copts = tf_copts(),
+    deps = [
+        "@gif_archive//:gif",
+    ],
+)
+
+cc_library(
+    name = "jpeg",
+    copts = tf_copts(),
+    deps = [
+        "@jpeg",
+    ],
+)
+
+cc_library(
+    name = "protos_cc_impl",
+    copts = tf_copts(),
+    deps = [
+        "//tensorflow/core:protos_all_cc_impl",
     ],
 )
 
@@ -110,7 +176,7 @@ filegroup(
 cc_library(
     name = "cuda",
     data = [
-        "@local_config_cuda//cuda:{}".format(cuda_library_path("cudart")),
+        "@local_config_cuda//cuda:cudart",
     ],
     linkopts = select({
         "@local_config_cuda//cuda:darwin": [
@@ -127,9 +193,29 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "sycl",
+    data = if_ccpp([
+        "@local_config_sycl//sycl:{}".format(sycl_library_path("ComputeCpp")),
+    ]),
+    linkopts = if_ccpp([
+        "-Wl,-rpath,../local_config_sycl/sycl/lib",
+    ]),
+    deps = if_ccpp(
+        ["@local_config_sycl//sycl:syclrt"],
+        ["@local_config_sycl//sycl:sycl_headers"],
+    ),
+)
+
 filegroup(
-    name = "android_srcs",
+    name = "mobile_srcs",
     srcs = glob(["*.h"]),
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "android_srcs",
+    actual = ":mobile_srcs",
     visibility = ["//visibility:public"],
 )
 

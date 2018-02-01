@@ -11,10 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
-"""
-This is an example of using recurrent neural networks over characters
-for DBpedia dataset to predict class from description of an entity.
+"""Example of recurrent neural networks over characters for DBpedia dataset.
 
 This model is similar to one described in this paper:
    "Character-level Convolutional Networks for Text Classification"
@@ -29,41 +26,56 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+import sys
 
 import numpy as np
 import pandas
-from sklearn import metrics
 import tensorflow as tf
-
-from tensorflow.contrib import learn
 
 FLAGS = None
 
 MAX_DOCUMENT_LENGTH = 100
 HIDDEN_SIZE = 20
+MAX_LABEL = 15
+CHARS_FEATURE = 'chars'  # Name of the input character feature.
 
 
-def char_rnn_model(x, y):
+def char_rnn_model(features, labels, mode):
   """Character level recurrent neural network model to predict classes."""
-  y = tf.one_hot(y, 15, 1, 0)
-  byte_list = learn.ops.one_hot_matrix(x, 256)
-  byte_list = tf.unpack(byte_list, axis=1)
+  byte_vectors = tf.one_hot(features[CHARS_FEATURE], 256, 1., 0.)
+  byte_list = tf.unstack(byte_vectors, axis=1)
 
   cell = tf.nn.rnn_cell.GRUCell(HIDDEN_SIZE)
-  _, encoding = tf.nn.rnn(cell, byte_list, dtype=tf.float32)
+  _, encoding = tf.nn.static_rnn(cell, byte_list, dtype=tf.float32)
 
-  prediction, loss = learn.models.logistic_regression(encoding, y)
+  logits = tf.layers.dense(encoding, MAX_LABEL, activation=None)
 
-  train_op = tf.contrib.layers.optimize_loss(
-      loss, tf.contrib.framework.get_global_step(),
-      optimizer='Adam', learning_rate=0.01)
+  predicted_classes = tf.argmax(logits, 1)
+  if mode == tf.estimator.ModeKeys.PREDICT:
+    return tf.estimator.EstimatorSpec(
+        mode=mode,
+        predictions={
+            'class': predicted_classes,
+            'prob': tf.nn.softmax(logits)
+        })
 
-  return {'class': tf.argmax(prediction, 1), 'prob': prediction}, loss, train_op
+  loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
+  if mode == tf.estimator.ModeKeys.TRAIN:
+    optimizer = tf.train.AdamOptimizer(learning_rate=0.01)
+    train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
+    return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
+
+  eval_metric_ops = {
+      'accuracy': tf.metrics.accuracy(
+          labels=labels, predictions=predicted_classes)
+  }
+  return tf.estimator.EstimatorSpec(
+      mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
 
 
 def main(unused_argv):
   # Prepare training and testing data
-  dbpedia = learn.datasets.load_dataset(
+  dbpedia = tf.contrib.learn.datasets.load_dataset(
       'dbpedia', test_with_fake_data=FLAGS.test_with_fake_data)
   x_train = pandas.DataFrame(dbpedia.train.data)[1]
   y_train = pandas.Series(dbpedia.train.target)
@@ -71,19 +83,32 @@ def main(unused_argv):
   y_test = pandas.Series(dbpedia.test.target)
 
   # Process vocabulary
-  char_processor = learn.preprocessing.ByteProcessor(MAX_DOCUMENT_LENGTH)
+  char_processor = tf.contrib.learn.preprocessing.ByteProcessor(
+      MAX_DOCUMENT_LENGTH)
   x_train = np.array(list(char_processor.fit_transform(x_train)))
   x_test = np.array(list(char_processor.transform(x_test)))
 
   # Build model
-  classifier = learn.Estimator(model_fn=char_rnn_model)
+  classifier = tf.estimator.Estimator(model_fn=char_rnn_model)
 
-  # Train and predict
-  classifier.fit(x_train, y_train, steps=100)
-  y_predicted = [
-      p['class'] for p in classifier.predict(x_test, as_iterable=True)]
-  score = metrics.accuracy_score(y_test, y_predicted)
-  print('Accuracy: {0:f}'.format(score))
+  # Train.
+  train_input_fn = tf.estimator.inputs.numpy_input_fn(
+      x={CHARS_FEATURE: x_train},
+      y=y_train,
+      batch_size=128,
+      num_epochs=None,
+      shuffle=True)
+  classifier.train(input_fn=train_input_fn, steps=100)
+
+  # Eval.
+  test_input_fn = tf.estimator.inputs.numpy_input_fn(
+      x={CHARS_FEATURE: x_test},
+      y=y_test,
+      num_epochs=1,
+      shuffle=False)
+
+  scores = classifier.evaluate(input_fn=test_input_fn)
+  print('Accuracy: {0:f}'.format(scores['accuracy']))
 
 
 if __name__ == '__main__':
@@ -92,8 +117,6 @@ if __name__ == '__main__':
       '--test_with_fake_data',
       default=False,
       help='Test the example code with fake data.',
-      action='store_true'
-  )
-  FLAGS = parser.parse_args()
-
-  tf.app.run()
+      action='store_true')
+  FLAGS, unparsed = parser.parse_known_args()
+  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
